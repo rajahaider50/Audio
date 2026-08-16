@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Smart Audio Visualizer & Cutter Studio</title>
+    
+    <!-- Suppress Tailwind CDN Warning -->
+    <script>
+        const originalWarn = console.warn;
+        console.warn = function() {
+            if (arguments[0] && typeof arguments[0] === 'string' && arguments[0].includes('cdn.tailwindcss.com should not be used in production')) return;
+            originalWarn.apply(console, arguments);
+        };
+    </script>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'theme-sky': '#e0f2fe',
+                        'theme-orange': '#ffedd5',
+                        'theme-yellow': '#fef9c3',
+                        'theme-green': '#dcfce7',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #ffffff 0%, #e0f2fe 25%, #dcfce7 50%, #fef9c3 75%, #ffedd5 100%);
+            background-attachment: fixed;
+            min-height: 100vh;
+            overflow-x: hidden;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            box-shadow: 0 10px 40px -10px rgba(0,0,0,0.1);
+            border-radius: 24px;
+            transition: all 0.3s ease;
+        }
+
+        /* Splash Screen */
+        #splash-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #ffffff;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            transition: opacity 0.6s ease-out, visibility 0.6s ease-out;
+        }
+
+        .loader-ring {
+            width: 60px;
+            height: 60px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #000000;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .fade-in-up {
+            animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        @keyframes fadeInUp {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        input[type="file"] { display: none; }
+    </style>
+</head>
+<body class="text-gray-800 antialiased selection:bg-black selection:text-white">
+
+    <!-- Professional Splash Screen -->
+    <div id="splash-screen">
+        <div class="loader-ring mb-6"></div>
+        <h1 class="text-2xl font-bold tracking-wider text-black flex items-center gap-3">
+            <i class="fa-solid fa-waveform-lines text-blue-600"></i> AUDIO STUDIO
+        </h1>
+        <p class="text-sm text-gray-500 mt-2 font-medium">Loading Audio Engine...</p>
+    </div>
+
+    <!-- Main Container -->
+    <main class="container mx-auto px-4 py-10 max-w-4xl min-h-screen flex flex-col justify-center opacity-0" id="main-content">
+        
+        <header class="text-center mb-8 fade-in-up" style="animation-delay: 0.2s;">
+            <div class="inline-block bg-black text-white px-4 py-1.5 rounded-full text-xs font-semibold tracking-widest mb-4 shadow-lg">
+                PRO EDITION
+            </div>
+            <h1 class="text-4xl md:text-5xl font-extrabold text-black mb-3 tracking-tight">
+                Audio Visualizer & Cutter
+            </h1>
+            <p class="text-gray-600 text-sm md:text-base max-w-lg mx-auto">
+                Experience real-time frequency visualizer and trim your favorite audio files instantly.
+            </p>
+        </header>
+
+        <!-- Upload Zone -->
+        <div id="upload-section" class="glass-card p-10 mb-8 text-center cursor-pointer border-2 border-dashed border-gray-300 hover:border-black fade-in-up transition-all group relative" style="animation-delay: 0.4s;">
+            <input type="file" id="file-input" accept="audio/mp3, audio/wav, audio/aac, audio/ogg">
+            <div class="flex flex-col items-center justify-center space-y-4 pointer-events-none">
+                <div class="w-20 h-20 rounded-full bg-black text-white flex items-center justify-center text-3xl group-hover:scale-110 transition-transform duration-300 shadow-xl">
+                    <i class="fa-solid fa-music"></i>
+                </div>
+                <h3 class="text-xl font-semibold text-black">Upload Audio Track</h3>
+                <p class="text-sm text-gray-500">Supports MP3, WAV, AAC (High Quality)</p>
+            </div>
+        </div>
+
+        <!-- Studio Workspace (Hidden initially) -->
+        <div id="studio-section" class="glass-card p-6 mb-8 hidden fade-in-up">
+            
+            <div class="flex flex-col md:flex-row justify-between items-center mb-6 border-b pb-4 gap-4">
+                <div>
+                    <h3 id="track-title" class="font-bold text-lg text-black">Track Name.mp3</h3>
+                    <p id="track-info" class="text-xs text-gray-500">Duration: 00:00</p>
+                </div>
+                <button onclick="resetStudio()" class="text-sm font-semibold text-red-600 hover:underline">
+                    <i class="fa-solid fa-arrow-rotate-left mr-1"></i> Upload Different Track
+                </button>
+            </div>
+
+            <!-- Live Visualizer Canvas -->
+            <div class="w-full h-48 bg-black rounded-2xl overflow-hidden shadow-2xl mb-6 relative flex items-center justify-center">
+                <canvas id="visualizer-canvas" class="w-full h-full"></canvas>
+                <div class="absolute bottom-3 right-3 bg-white/10 backdrop-blur-md px-3 py-1 rounded-full text-xs text-white font-mono">
+                    LIVE SPECTRUM
+                </div>
+            </div>
+
+            <!-- Audio Player & Controls -->
+            <div class="flex items-center justify-center gap-6 mb-6">
+                <button id="play-btn" onclick="togglePlay()" class="w-16 h-16 rounded-full bg-black text-white text-2xl flex items-center justify-center shadow-lg hover:scale-105 transition-all">
+                    <i class="fa-solid fa-play ml-1" id="play-icon"></i>
+                </button>
+            </div>
+
+            <!-- Trimming Controls Panel -->
+            <div class="bg-gray-50/80 p-5 rounded-2xl border border-gray-200">
+                <h4 class="font-bold text-sm mb-4 flex items-center"><i class="fa-solid fa-scissors mr-2"></i> Audio Trimmer & Cutter</h4>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Start Time (Seconds)</label>
+                        <input type="number" id="start-time" value="0" min="0" step="0.1" class="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:border-black">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">End Time (Seconds)</label>
+                        <input type="number" id="end-time" value="10" min="1" step="0.1" class="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:border-black">
+                    </div>
+                </div>
+
+                <button onclick="trimAndDownload()" class="w-full bg-black text-white py-3.5 rounded-xl font-bold hover:bg-gray-800 transition-all shadow-lg flex items-center justify-center gap-2 text-sm">
+                    <i class="fa-solid fa-download"></i> Trim & Download Segment
+                </button>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Hidden Audio Element -->
+    <audio id="audio-element" crossorigin="anonymous"></audio>
+
+    <!-- Application Script Logic -->
+    <script>
+        const splashScreen = document.getElementById('splash-screen');
+        const mainContent = document.getElementById('main-content');
+        const uploadSection = document.getElementById('upload-section');
+        const studioSection = document.getElementById('studio-section');
+        const fileInput = document.getElementById('file-input');
+        const audioElement = document.getElementById('audio-element');
+        const playBtn = document.getElementById('play-btn');
+        const playIcon = document.getElementById('play-icon');
+        const trackTitle = document.getElementById('track-title');
+        const trackInfo = document.getElementById('track-info');
+        const canvas = document.getElementById('visualizer-canvas');
+        const ctx = canvas.getContext('2d');
+        const startTimeInput = document.getElementById('start-time');
+        const endTimeInput = document.getElementById('end-time');
+
+        let audioCtx, analyser, sourceNode, audioBuffer;
+        let isInitialized = false;
+
+        // Splash screen dismissal
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                splashScreen.style.opacity = '0';
+                splashScreen.style.visibility = 'hidden';
+                mainContent.style.opacity = '1';
+                mainContent.classList.add('fade-in-up');
+            }, 1200);
+        });
+
+        uploadSection.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) {
+                loadAudioFile(e.target.files[0]);
+            }
+        });
+
+        async function loadAudioFile(file) {
+            trackTitle.textContent = file.name;
+            const fileUrl = URL.createObjectURL(file);
+            audioElement.src = fileUrl;
+
+            const arrayBuffer = await file.arrayBuffer();
+            
+            // Initialize Web Audio API
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+
+            audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+            
+            trackInfo.textContent = `Duration: ${audioBuffer.duration.toFixed(1)}s`;
+            endTimeInput.value = Math.min(10, audioBuffer.duration.toFixed(1));
+            endTimeInput.max = audioBuffer.duration;
+            startTimeInput.max = audioBuffer.duration;
+
+            uploadSection.classList.add('hidden');
+            studioSection.classList.remove('hidden');
+
+            setupVisualizer();
+        }
+
+        function setupVisualizer() {
+            if (isInitialized) return;
+
+            analyser = audioCtx.createAnalyser();
+            sourceNode = audioCtx.createMediaElementSource(audioElement);
+            sourceNode.connect(analyser);
+            analyser.connect(audioCtx.destination);
+
+            analyser.fftSize = 256;
+            isInitialized = true;
+
+            drawVisualizer();
+        }
+
+        function drawVisualizer() {
+            requestAnimationFrame(drawVisualizer);
+
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            analyser.getByteFrequencyData(dataArray);
+
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            const barWidth = (canvas.width / bufferLength) * 2.5;
+            let x = 0;
+
+            for (let i = 0; i < bufferLength; i++) {
+                const barHeight = (dataArray[i] / 255) * canvas.height;
+
+                // Luxury gradient matching theme
+                const gradient = ctx.createLinearGradient(0, canvas.height, 0, 0);
+                gradient.addColorStop(0, '#e0f2fe');
+                gradient.addColorStop(0.5, '#dcfce7');
+                gradient.addColorStop(1, '#fef9c3');
+
+                ctx.fillStyle = gradient;
+                ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+
+                x += barWidth + 1;
+            }
+        }
+
+        function togglePlay() {
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
+            if (audioElement.paused) {
+                audioElement.play();
+                playIcon.className = "fa-solid fa-pause";
+            } else {
+                audioElement.pause();
+                playIcon.className = "fa-solid fa-play ml-1";
+            }
+        }
+
+        function resetStudio() {
+            audioElement.pause();
+            audioElement.src = '';
+            fileInput.value = '';
+            studioSection.classList.add('hidden');
+            uploadSection.classList.remove('hidden');
+            playIcon.className = "fa-solid fa-play ml-1";
+        }
+
+        /**
+         * Trim audio buffer and export as WAV segment
+         */
+        async function trimAndDownload() {
+            if (!audioBuffer) return;
+
+            const start = parseFloat(startTimeInput.value);
+            const end = parseFloat(endTimeInput.value);
+
+            if (start >= end || end > audioBuffer.duration) {
+                alert("Please select a valid time range.");
+                return;
+            }
+
+            const sampleRate = audioBuffer.sampleRate;
+            const startFrame = Math.floor(start * sampleRate);
+            const endFrame = Math.floor(end * sampleRate);
+            const frameCount = endFrame - startFrame;
+
+            const trimmedBuffer = audioCtx.createBuffer(
+                audioBuffer.numberOfChannels,
+                frameCount,
+                sampleRate
+            );
+
+            for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+                const channelData = audioBuffer.getChannelData(channel);
+                const trimmedData = trimmedBuffer.getChannelData(channel);
+                for (let i = 0; i < frameCount; i++) {
+                    trimmedData[i] = channelData[startFrame + i];
+                }
+            }
+
+            // Convert AudioBuffer to WAV Blob
+            const wavBlob = bufferToWave(trimmedBuffer, frameCount);
+            const url = URL.createObjectURL(wavBlob);
+
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'trimmed-audio-segment.wav';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            setTimeout(() => URL.revokeObjectURL(url), 100);
+        }
+
+        // Helper: Convert AudioBuffer to WAV format
+        function bufferToWave(abBuffer, len) {
+            const numOfChan = abBuffer.numberOfChannels;
+            const length = len * numOfChan * 2 + 44;
+            const out = new DataView(new ArrayBuffer(length));
+            let channels = [], sampleRate = abBuffer.sampleRate, offset = 0, pos = 0;
+
+            function writeString(str) {
+                for (let i = 0; i < str.length; i++) {
+                    out.setUint8(pos++, str.charCodeAt(i));
+                }
+            }
+
+            writeString('RIFF');
+            out.setUint32(pos, length - 8, true); pos += 4;
+            writeString('WAVE');
+            writeString('fmt ');
+            out.setUint32(pos, 16, true); pos += 4;
+            out.setUint16(pos, 1, true); pos += 2;
+            out.setUint16(pos, numOfChan, true); pos += 2;
+            out.setUint32(pos, sampleRate, true); pos += 4;
+            out.setUint32(pos, sampleRate * 2 * numOfChan, true); pos += 4;
+            out.setUint16(pos, numOfChan * 2, true); pos += 2;
+            out.setUint16(pos, 16, true); pos += 2;
+            writeString('data');
+            out.setUint32(pos, length - pos - 4, true); pos += 4;
+
+            for (let i = 0; i < abBuffer.numberOfChannels; i++) {
+                channels.push(abBuffer.getChannelData(i));
+            }
+
+            while (offset < len) {
+                for (let i = 0; i < numOfChan; i++) {
+                    let sample = Math.max(-1, Math.min(1, channels[i][offset]));
+                    sample = (0.5 + sample < 0 ? sample * 32768 : sample * 32767);
+                    out.setInt16(pos, sample, true);
+                    pos += 2;
+                }
+                offset++;
+            }
+
+            return new Blob([out.buffer], { type: 'audio/wav' });
+        }
+    </script>
+</body>
+</html>
